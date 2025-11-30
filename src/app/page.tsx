@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { db } from "@/db";
-import { activities, Activity } from "@/db/schema";
-import { sql } from "drizzle-orm";
+import { activities, participants, Activity } from "@/db/schema";
+import { sql, eq } from "drizzle-orm";
+import { getSession } from "@/lib/session";
+import { ActivityCard } from "./activities/ActivityCard";
 import {
   getNextOccurrence,
   isRecurringActivityActive,
-  formatRecurrenceType,
 } from "@/lib/recurrence";
 
 const SPORT_TYPES = [
@@ -21,9 +22,16 @@ const SPORT_TYPES = [
 
 interface ActivityWithNextDate extends Activity {
   nextOccurrence: Date;
+  participantCount: number;
+  isJoined: boolean;
+  isOrganizer: boolean;
+  isFull: boolean;
 }
 
-async function getUpcomingActivities(): Promise<ActivityWithNextDate[]> {
+async function getActivitiesForHome(userId?: string): Promise<{
+  joined: ActivityWithNextDate[];
+  available: ActivityWithNextDate[];
+}> {
   const nowSeconds = Math.floor(Date.now() / 1000);
 
   const results = await db.query.activities.findMany({
@@ -32,25 +40,78 @@ async function getUpcomingActivities(): Promise<ActivityWithNextDate[]> {
       OR
       (${activities.isRecurring} = 1 AND (${activities.recurrenceEndDate} IS NULL OR ${activities.recurrenceEndDate} > ${nowSeconds}))
     )`,
-    limit: 20,
+    limit: 30,
+    with: {
+      participants: {
+        where: eq(participants.status, "confirmed"),
+      },
+    },
   });
 
-  // Calculate next occurrence and filter/sort
-  return results
+  // Process activities
+  const activitiesWithData: ActivityWithNextDate[] = results
     .filter((activity) => isRecurringActivityActive(activity))
-    .map((activity) => ({
-      ...activity,
-      nextOccurrence: getNextOccurrence(activity),
-    }))
-    .sort((a, b) => a.nextOccurrence.getTime() - b.nextOccurrence.getTime())
-    .slice(0, 6);
+    .map((activity) => {
+      const participantCount = activity.participants?.length || 0;
+      const isJoined = userId
+        ? activity.participants?.some((p) => p.userId === userId) || false
+        : false;
+      const isOrganizer = userId ? activity.organizerId === userId : false;
+      const isFull = participantCount >= activity.maxParticipants;
+
+      return {
+        ...activity,
+        nextOccurrence: getNextOccurrence(activity),
+        participantCount,
+        isJoined,
+        isOrganizer,
+        isFull,
+      };
+    })
+    .sort((a, b) => a.nextOccurrence.getTime() - b.nextOccurrence.getTime());
+
+  // Separate joined and available activities
+  const joined = activitiesWithData.filter((a) => a.isJoined).slice(0, 6);
+  const available = activitiesWithData.filter((a) => !a.isJoined).slice(0, 6);
+
+  return { joined, available };
 }
 
 export default async function HomePage() {
-  const upcomingActivities = await getUpcomingActivities();
+  const session = await getSession();
+  const { joined, available } = await getActivitiesForHome(session?.id);
 
   return (
     <div className="min-h-screen">
+      {/* Your Activities Section - Shown at top when logged in and has activities */}
+      {session && joined.length > 0 && (
+        <section className="bg-gradient-to-br from-green-50 to-blue-50 py-12 border-b">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex justify-between items-center mb-6">
+              <div className="flex items-center gap-3">
+                <h2 className="text-2xl font-bold text-gray-900">
+                  Your Activities
+                </h2>
+                <span className="bg-green-100 text-green-800 text-sm font-medium px-2.5 py-0.5 rounded">
+                  {joined.length}
+                </span>
+              </div>
+              <Link
+                href="/dashboard"
+                className="text-blue-600 hover:text-blue-700 font-medium"
+              >
+                View all →
+              </Link>
+            </div>
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {joined.map((activity) => (
+                <ActivityCard key={activity.id} activity={activity} />
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* Hero Section */}
       <section className="bg-gradient-to-br from-blue-600 to-blue-800 text-white py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -103,13 +164,18 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* Upcoming Activities */}
+      {/* Available Activities Section */}
       <section className="py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center mb-8">
-            <h2 className="text-2xl font-bold text-gray-900">
-              Upcoming Activities
-            </h2>
+          <div className="flex justify-between items-center mb-6">
+            <div className="flex items-center gap-3">
+              <h2 className="text-2xl font-bold text-gray-900">
+                {session && joined.length > 0 ? "Discover More" : "Upcoming Activities"}
+              </h2>
+              <span className="bg-blue-100 text-blue-800 text-sm font-medium px-2.5 py-0.5 rounded">
+                {available.length}
+              </span>
+            </div>
             <Link
               href="/activities"
               className="text-blue-600 hover:text-blue-700 font-medium"
@@ -118,101 +184,10 @@ export default async function HomePage() {
             </Link>
           </div>
 
-          {upcomingActivities.length > 0 ? (
+          {available.length > 0 ? (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {upcomingActivities.map((activity) => (
-                <Link
-                  key={activity.id}
-                  href={`/activities/${activity.id}`}
-                  className="bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow overflow-hidden border"
-                >
-                  <div className="p-6">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded">
-                          {activity.sportType}
-                        </span>
-                        {activity.isRecurring && (
-                          <span className="bg-purple-100 text-purple-800 text-xs font-medium px-2 py-0.5 rounded">
-                            ↻ {formatRecurrenceType(activity.recurrenceType)}
-                          </span>
-                        )}
-                      </div>
-                      <span className="text-xs text-gray-500">
-                        {activity.skillLevel}
-                      </span>
-                    </div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                      {activity.title}
-                    </h3>
-                    <p className="text-gray-600 text-sm mb-4 line-clamp-2">
-                      {activity.description}
-                    </p>
-                    <div className="space-y-2 text-sm text-gray-500">
-                      <div className="flex items-center">
-                        <svg
-                          className="w-4 h-4 mr-2"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
-                          />
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
-                          />
-                        </svg>
-                        {activity.location}
-                      </div>
-                      <div className="flex items-center">
-                        <svg
-                          className="w-4 h-4 mr-2"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                          />
-                        </svg>
-                        {activity.isRecurring ? "Next: " : ""}
-                        {activity.nextOccurrence.toLocaleDateString("en-US", {
-                          weekday: "short",
-                          month: "short",
-                          day: "numeric",
-                          hour: "numeric",
-                          minute: "2-digit",
-                        })}
-                      </div>
-                      <div className="flex items-center">
-                        <svg
-                          className="w-4 h-4 mr-2"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-                          />
-                        </svg>
-                        Max {activity.maxParticipants} participants
-                      </div>
-                    </div>
-                  </div>
-                </Link>
+              {available.map((activity) => (
+                <ActivityCard key={activity.id} activity={activity} />
               ))}
             </div>
           ) : (

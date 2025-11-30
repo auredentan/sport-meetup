@@ -98,6 +98,50 @@ No setup or API keys needed! Just install the dependencies and you're ready to g
 - `pnpm db:generate` - Generate migrations
 - `pnpm db:migrate` - Run migrations
 - `pnpm db:studio` - Open Drizzle Studio to browse data
+- `pnpm db:seed` - Populate database with fake data for testing
+
+## Testing
+
+The project uses Playwright for end-to-end testing:
+
+- `pnpm test` - Run all tests
+- `pnpm test:ui` - Run tests in interactive UI mode
+- `pnpm test:headed` - Run tests in headed mode (visible browser)
+- `pnpm test:report` - View HTML test report
+
+**Test Coverage**: 30+ tests covering:
+- Homepage and navigation
+- Activity filtering (including date range filtering)
+- Location autocomplete
+- Activity CRUD operations
+- Join/leave functionality
+- Maps display
+
+See [tests/README.md](tests/README.md) for detailed test documentation.
+
+### Seeding the Database
+
+To populate your database with sample data for testing:
+
+```bash
+pnpm db:seed
+```
+
+This will create:
+- 5 fake users
+- 14+ activities across various sports and locations (Running, Cycling, Tennis, Basketball, Soccer, Yoga, etc.)
+- Activities in famous locations worldwide (Central Park, Golden Gate Park, Hyde Park, etc.)
+- Multiple participants per activity
+- Mix of one-time and recurring activities
+
+Test user emails (no password needed in development):
+- sarah.johnson@example.com
+- mike.chen@example.com
+- emma.davis@example.com
+- james.wilson@example.com
+- olivia.brown@example.com
+
+**Note:** Running the seed script will clear all existing data first.
 
 ## Project Structure
 

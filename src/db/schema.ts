@@ -1,4 +1,5 @@
 import { sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core";
+import { relations } from "drizzle-orm";
 
 export const users = sqliteTable("users", {
   id: text("id").primaryKey(),
@@ -55,6 +56,22 @@ export const participants = sqliteTable("participants", {
     .notNull()
     .$defaultFn(() => new Date()),
 });
+
+// Relations
+export const activitiesRelations = relations(activities, ({ many }) => ({
+  participants: many(participants),
+}));
+
+export const participantsRelations = relations(participants, ({ one }) => ({
+  activity: one(activities, {
+    fields: [participants.activityId],
+    references: [activities.id],
+  }),
+  user: one(users, {
+    fields: [participants.userId],
+    references: [users.id],
+  }),
+}));
 
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;

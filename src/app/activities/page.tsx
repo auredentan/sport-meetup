@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { db } from "@/db";
 import { activities, Activity } from "@/db/schema";
-import { sql, eq, and, or, like } from "drizzle-orm";
+import { sql, eq, and, like } from "drizzle-orm";
 import {
   getNextOccurrence,
   isRecurringActivityActive,
@@ -32,6 +32,8 @@ interface PageProps {
     sport?: string;
     skill?: string;
     location?: string;
+    dateFrom?: string;
+    dateTo?: string;
   }>;
 }
 
@@ -43,15 +45,15 @@ async function getActivities(filters: {
   sport?: string;
   skill?: string;
   location?: string;
+  dateFrom?: string;
+  dateTo?: string;
 }): Promise<ActivityWithNextDate[]> {
   const nowSeconds = Math.floor(Date.now() / 1000);
 
-  // Build conditions - include activities that are:
-  // 1. Non-recurring with future date, OR
-  // 2. Recurring with end date in the future (or no end date)
+  // Build conditions
   const conditions: ReturnType<typeof sql>[] = [];
 
-  // Base condition: future one-time activities OR active recurring activities
+  // Base condition: future activities
   conditions.push(
     sql`(
       (${activities.isRecurring} = 0 AND ${activities.date} > ${nowSeconds})
@@ -77,13 +79,28 @@ async function getActivities(filters: {
   });
 
   // Calculate next occurrence for each activity and filter out inactive ones
-  const activitiesWithNextDate: ActivityWithNextDate[] = results
+  let activitiesWithNextDate: ActivityWithNextDate[] = results
     .filter((activity) => isRecurringActivityActive(activity))
     .map((activity) => ({
       ...activity,
       nextOccurrence: getNextOccurrence(activity),
     }))
     .sort((a, b) => a.nextOccurrence.getTime() - b.nextOccurrence.getTime());
+
+  // Apply date range filter on calculated next occurrence
+  if (filters.dateFrom) {
+    const dateFromTimestamp = new Date(filters.dateFrom).getTime();
+    activitiesWithNextDate = activitiesWithNextDate.filter(
+      (activity) => activity.nextOccurrence.getTime() >= dateFromTimestamp
+    );
+  }
+
+  if (filters.dateTo) {
+    const dateToTimestamp = new Date(filters.dateTo).setHours(23, 59, 59, 999);
+    activitiesWithNextDate = activitiesWithNextDate.filter(
+      (activity) => activity.nextOccurrence.getTime() <= dateToTimestamp
+    );
+  }
 
   return activitiesWithNextDate;
 }
@@ -94,6 +111,8 @@ export default async function ActivitiesPage({ searchParams }: PageProps) {
     sport: params.sport,
     skill: params.skill,
     location: params.location,
+    dateFrom: params.dateFrom,
+    dateTo: params.dateTo,
   });
 
   return (
@@ -111,63 +130,91 @@ export default async function ActivitiesPage({ searchParams }: PageProps) {
 
         {/* Filters */}
         <div className="bg-white rounded-xl shadow-sm p-6 mb-8">
-          <form className="grid md:grid-cols-4 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Sport Type
-              </label>
-              <select
-                name="sport"
-                defaultValue={params.sport || ""}
-                className="w-full rounded-lg border-gray-300 border px-3 py-2 focus:border-blue-500 focus:ring-blue-500"
-              >
-                <option value="">All Sports</option>
-                {SPORT_TYPES.map((sport) => (
-                  <option key={sport} value={sport}>
-                    {sport}
-                  </option>
-                ))}
-              </select>
+          <form className="space-y-4">
+            <div className="grid md:grid-cols-4 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Sport Type
+                </label>
+                <select
+                  name="sport"
+                  defaultValue={params.sport || ""}
+                  className="w-full rounded-lg border-gray-300 border px-3 py-2 focus:border-blue-500 focus:ring-blue-500"
+                >
+                  <option value="">All Sports</option>
+                  {SPORT_TYPES.map((sport) => (
+                    <option key={sport} value={sport}>
+                      {sport}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Skill Level
+                </label>
+                <select
+                  name="skill"
+                  defaultValue={params.skill || ""}
+                  className="w-full rounded-lg border-gray-300 border px-3 py-2 focus:border-blue-500 focus:ring-blue-500"
+                >
+                  <option value="">Any Level</option>
+                  {SKILL_LEVELS.map((level) => (
+                    <option key={level} value={level}>
+                      {level}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Location
+                </label>
+                <input
+                  type="text"
+                  name="location"
+                  defaultValue={params.location || ""}
+                  placeholder="City or area"
+                  className="w-full rounded-lg border-gray-300 border px-3 py-2 focus:border-blue-500 focus:ring-blue-500"
+                />
+              </div>
+
+              <div className="flex items-end">
+                <button
+                  type="submit"
+                  className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors"
+                >
+                  Search
+                </button>
+              </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Skill Level
-              </label>
-              <select
-                name="skill"
-                defaultValue={params.skill || ""}
-                className="w-full rounded-lg border-gray-300 border px-3 py-2 focus:border-blue-500 focus:ring-blue-500"
-              >
-                <option value="">Any Level</option>
-                {SKILL_LEVELS.map((level) => (
-                  <option key={level} value={level}>
-                    {level}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <div className="grid md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Date From
+                </label>
+                <input
+                  type="date"
+                  name="dateFrom"
+                  defaultValue={params.dateFrom || ""}
+                  className="w-full rounded-lg border-gray-300 border px-3 py-2 focus:border-blue-500 focus:ring-blue-500"
+                />
+              </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Location
-              </label>
-              <input
-                type="text"
-                name="location"
-                defaultValue={params.location || ""}
-                placeholder="City or area"
-                className="w-full rounded-lg border-gray-300 border px-3 py-2 focus:border-blue-500 focus:ring-blue-500"
-              />
-            </div>
-
-            <div className="flex items-end">
-              <button
-                type="submit"
-                className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors"
-              >
-                Search
-              </button>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Date To
+                </label>
+                <input
+                  type="date"
+                  name="dateTo"
+                  defaultValue={params.dateTo || ""}
+                  className="w-full rounded-lg border-gray-300 border px-3 py-2 focus:border-blue-500 focus:ring-blue-500"
+                />
+              </div>
             </div>
           </form>
         </div>

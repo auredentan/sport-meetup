@@ -32,7 +32,7 @@ export function LocationAutocomplete({
   const [suggestions, setSuggestions] = useState<NominatimResult[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const debounceTimer = useRef<NodeJS.Timeout>();
+  const debounceTimer = useRef<NodeJS.Timeout | undefined>(undefined);
   const wrapperRef = useRef<HTMLDivElement>(null);
 
   // Close suggestions when clicking outside
