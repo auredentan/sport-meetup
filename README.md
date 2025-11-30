@@ -7,8 +7,8 @@ A web application to find and connect with people for sports activities in your 
 - **User Authentication**: Secure login/signup via WorkOS AuthKit
 - **Activity Browsing**: Search and filter activities by sport type, skill level, and location
 - **Activity Creation**: Create your own sports activities with all details
-- **Location Autocomplete**: Google Places autocomplete for easy location selection
-- **Map Display**: View activity locations on interactive maps
+- **Location Autocomplete**: OpenStreetMap Nominatim autocomplete for easy location selection
+- **Map Display**: View activity locations on interactive Leaflet maps with OpenStreetMap tiles
 - **Join Activities**: Join activities organized by others
 - **Dashboard**: Manage your organized and joined activities
 - **Participant Management**: See who's joining your activities
@@ -20,7 +20,8 @@ A web application to find and connect with people for sports activities in your 
 - **Language**: TypeScript
 - **Database**: SQLite with Drizzle ORM
 - **Authentication**: WorkOS
-- **Maps**: Google Maps JavaScript API with Places Autocomplete
+- **Maps**: Leaflet with OpenStreetMap (free, no API key required)
+- **Geocoding**: OpenStreetMap Nominatim API (free, open-source)
 - **Styling**: Tailwind CSS
 - **Package Manager**: pnpm
 
@@ -47,7 +48,7 @@ pnpm install
 
 3. Set up environment variables:
 
-Copy `.env.example` to `.env.local` and fill in your credentials:
+Copy `.env.example` to `.env.local` and fill in your WorkOS credentials:
 
 ```env
 # WorkOS Configuration
@@ -55,10 +56,9 @@ WORKOS_API_KEY=your_workos_api_key_here
 WORKOS_CLIENT_ID=your_workos_client_id_here
 WORKOS_REDIRECT_URI=http://localhost:3000/api/auth/callback
 WORKOS_COOKIE_PASSWORD=your_32_char_cookie_password_here
-
-# Google Maps API Key
-NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=your_google_maps_api_key
 ```
+
+Note: No API key needed for maps! The app uses OpenStreetMap which is free and open-source.
 
 4. Set up the database:
 
@@ -82,18 +82,15 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 4. Add `http://localhost:3000/api/auth/callback` as a redirect URI
 5. Copy your API Key and Client ID to the `.env.local` file
 
-## Google Maps API Setup
+## Maps & Geocoding
 
-1. Go to the [Google Cloud Console](https://console.cloud.google.com/)
-2. Create a new project or select an existing one
-3. Enable the following APIs:
-   - Maps JavaScript API
-   - Places API
-4. Create credentials (API Key)
-5. Restrict the API key (recommended):
-   - Set application restrictions (HTTP referrers for web)
-   - Set API restrictions to only the enabled APIs
-6. Copy your API Key to the `.env.local` file as `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`
+This app uses **free and open-source mapping solutions**:
+
+- **Leaflet** - Interactive map library
+- **OpenStreetMap** - Map tiles (no API key required)
+- **Nominatim** - Geocoding and location search (free OpenStreetMap service)
+
+No setup or API keys needed! Just install the dependencies and you're ready to go.
 
 ## Database Commands
 

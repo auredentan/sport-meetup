@@ -112,7 +112,7 @@ export default async function ActivityDetailPage({ params }: PageProps) {
         <div className="bg-white rounded-xl shadow-sm overflow-hidden">
           <div className="p-8">
             <div className="flex items-start justify-between mb-6">
-              <div>
+              <div className="flex-1">
                 <div className="flex items-center gap-3 mb-2 flex-wrap">
                   <span className="bg-blue-100 text-blue-800 text-sm font-medium px-3 py-1 rounded">
                     {activity.sportType}
@@ -148,6 +148,27 @@ export default async function ActivityDetailPage({ params }: PageProps) {
                   {activity.title}
                 </h1>
               </div>
+              {isOrganizer && !(isPast || isRecurringEnded) && (
+                <Link
+                  href={`/activities/${activity.id}/edit`}
+                  className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                    />
+                  </svg>
+                  Edit
+                </Link>
+              )}
             </div>
 
             <div className="grid md:grid-cols-3 gap-8">
@@ -231,7 +252,6 @@ export default async function ActivityDetailPage({ params }: PageProps) {
                       Location Map
                     </h2>
                     <MapView
-                      apiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || ""}
                       lat={activity.latitude}
                       lng={activity.longitude}
                       location={activity.location}

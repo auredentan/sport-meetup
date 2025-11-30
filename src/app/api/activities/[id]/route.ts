@@ -86,18 +86,61 @@ export async function PATCH(
 
     const body = await request.json();
 
-    const updates: Partial<typeof activities.$inferInsert> = {};
+    const {
+      title,
+      description,
+      sportType,
+      location,
+      latitude,
+      longitude,
+      date,
+      maxParticipants,
+      skillLevel,
+      isRecurring,
+      recurrenceType,
+      recurrenceEndDate,
+    } = body;
 
-    if (body.title) updates.title = body.title;
-    if (body.description) updates.description = body.description;
-    if (body.sportType) updates.sportType = body.sportType;
-    if (body.location) updates.location = body.location;
-    if (body.date) updates.date = new Date(body.date);
-    if (body.maxParticipants)
-      updates.maxParticipants = parseInt(body.maxParticipants);
-    if (body.skillLevel) updates.skillLevel = body.skillLevel;
+    if (
+      !title ||
+      !description ||
+      !sportType ||
+      !location ||
+      !date ||
+      !maxParticipants ||
+      !skillLevel
+    ) {
+      return NextResponse.json(
+        { error: "Missing required fields" },
+        { status: 400 }
+      );
+    }
 
-    updates.updatedAt = new Date();
+    if (isRecurring && (!recurrenceType || !recurrenceEndDate)) {
+      return NextResponse.json(
+        { error: "Recurring activities require recurrence type and end date" },
+        { status: 400 }
+      );
+    }
+
+    const startDate = new Date(date);
+
+    const updates: Partial<typeof activities.$inferInsert> = {
+      title,
+      description,
+      sportType,
+      location,
+      latitude: latitude || null,
+      longitude: longitude || null,
+      date: startDate,
+      maxParticipants: parseInt(maxParticipants),
+      skillLevel,
+      isRecurring: isRecurring || false,
+      recurrenceType: isRecurring ? recurrenceType : null,
+      recurrenceEndDate: isRecurring ? new Date(recurrenceEndDate) : null,
+      recurrenceDay: isRecurring ? startDate.getDay() : null,
+      updatedAt: new Date(),
+    };
 
     await db.update(activities).set(updates).where(eq(activities.id, id));
 

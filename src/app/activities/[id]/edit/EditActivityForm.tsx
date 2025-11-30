@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { LocationAutocomplete } from "@/components/LocationAutocomplete";
+import type { Activity } from "@/db/schema";
 
 const SPORT_TYPES = [
   "Running",
@@ -35,16 +36,49 @@ const RECURRENCE_TYPES = [
   { value: "monthly", label: "Monthly" },
 ];
 
-export function CreateActivityForm() {
+interface EditActivityFormProps {
+  activity: Activity;
+}
+
+export function EditActivityForm({ activity }: EditActivityFormProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [isRecurring, setIsRecurring] = useState(false);
+  const [isRecurring, setIsRecurring] = useState(activity.isRecurring || false);
   const [locationData, setLocationData] = useState<{
     address: string;
     lat: number;
     lng: number;
-  } | null>(null);
+  } | null>(
+    activity.latitude && activity.longitude
+      ? {
+          address: activity.location,
+          lat: activity.latitude,
+          lng: activity.longitude,
+        }
+      : null
+  );
+
+  // Format date for datetime-local input
+  const formatDateTimeLocal = (date: Date) => {
+    const d = new Date(date);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    const hours = String(d.getHours()).padStart(2, "0");
+    const minutes = String(d.getMinutes()).padStart(2, "0");
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  };
+
+  // Format date for date input
+  const formatDate = (date: Date | string | null) => {
+    if (!date) return "";
+    const d = new Date(date);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -57,9 +91,9 @@ export function CreateActivityForm() {
       title: formData.get("title"),
       description: formData.get("description"),
       sportType: formData.get("sportType"),
-      location: locationData?.address || "",
-      latitude: locationData?.lat || null,
-      longitude: locationData?.lng || null,
+      location: locationData?.address || activity.location,
+      latitude: locationData?.lat || activity.latitude,
+      longitude: locationData?.lng || activity.longitude,
       date: formData.get("date"),
       maxParticipants: formData.get("maxParticipants"),
       skillLevel: formData.get("skillLevel"),
@@ -69,8 +103,8 @@ export function CreateActivityForm() {
     };
 
     try {
-      const response = await fetch("/api/activities", {
-        method: "POST",
+      const response = await fetch(`/api/activities/${activity.id}`, {
+        method: "PATCH",
         headers: {
           "Content-Type": "application/json",
         },
@@ -79,11 +113,11 @@ export function CreateActivityForm() {
 
       if (!response.ok) {
         const result = await response.json();
-        throw new Error(result.error || "Failed to create activity");
+        throw new Error(result.error || "Failed to update activity");
       }
 
-      const result = await response.json();
-      router.push(`/activities/${result.id}`);
+      router.push(`/activities/${activity.id}`);
+      router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
@@ -110,6 +144,7 @@ export function CreateActivityForm() {
             id="title"
             name="title"
             required
+            defaultValue={activity.title}
             placeholder="e.g., Morning Run in Central Park"
             className="w-full rounded-lg border-gray-300 border px-3 py-2 focus:border-blue-500 focus:ring-blue-500"
           />
@@ -127,6 +162,7 @@ export function CreateActivityForm() {
             name="description"
             required
             rows={4}
+            defaultValue={activity.description}
             placeholder="Describe your activity, what to expect, what to bring..."
             className="w-full rounded-lg border-gray-300 border px-3 py-2 focus:border-blue-500 focus:ring-blue-500"
           />
@@ -144,6 +180,7 @@ export function CreateActivityForm() {
               id="sportType"
               name="sportType"
               required
+              defaultValue={activity.sportType}
               className="w-full rounded-lg border-gray-300 border px-3 py-2 focus:border-blue-500 focus:ring-blue-500"
             >
               <option value="">Select a sport</option>
@@ -166,6 +203,7 @@ export function CreateActivityForm() {
               id="skillLevel"
               name="skillLevel"
               required
+              defaultValue={activity.skillLevel}
               className="w-full rounded-lg border-gray-300 border px-3 py-2 focus:border-blue-500 focus:ring-blue-500"
             >
               <option value="">Select skill level</option>
@@ -186,7 +224,7 @@ export function CreateActivityForm() {
             Location *
           </label>
           <LocationAutocomplete
-            value={locationData?.address || ""}
+            value={locationData?.address || activity.location}
             onChange={setLocationData}
             placeholder="e.g., Central Park, New York"
             required
@@ -206,6 +244,7 @@ export function CreateActivityForm() {
               id="date"
               name="date"
               required
+              defaultValue={formatDateTimeLocal(activity.date)}
               className="w-full rounded-lg border-gray-300 border px-3 py-2 focus:border-blue-500 focus:ring-blue-500"
             />
           </div>
@@ -224,6 +263,7 @@ export function CreateActivityForm() {
               required
               min="2"
               max="100"
+              defaultValue={activity.maxParticipants}
               placeholder="e.g., 10"
               className="w-full rounded-lg border-gray-300 border px-3 py-2 focus:border-blue-500 focus:ring-blue-500"
             />
@@ -261,6 +301,7 @@ export function CreateActivityForm() {
                   id="recurrenceType"
                   name="recurrenceType"
                   required={isRecurring}
+                  defaultValue={activity.recurrenceType || ""}
                   className="w-full rounded-lg border-gray-300 border px-3 py-2 focus:border-blue-500 focus:ring-blue-500"
                 >
                   <option value="">Select frequency</option>
@@ -284,6 +325,7 @@ export function CreateActivityForm() {
                   id="recurrenceEndDate"
                   name="recurrenceEndDate"
                   required={isRecurring}
+                  defaultValue={formatDate(activity.recurrenceEndDate)}
                   className="w-full rounded-lg border-gray-300 border px-3 py-2 focus:border-blue-500 focus:ring-blue-500"
                 />
               </div>
@@ -311,7 +353,7 @@ export function CreateActivityForm() {
           disabled={loading}
           className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {loading ? "Creating..." : "Create Activity"}
+          {loading ? "Saving..." : "Save Changes"}
         </button>
       </div>
     </form>
